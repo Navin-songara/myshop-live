@@ -68,7 +68,7 @@ function App() {
 
   const fetchProducts = async () => {
     try {
-      const res = await axios.get('http://localhost:5000/api/products');
+      const res = await axios.get('https://myshop-live-sllw.onrender.com/api/products');
       setProducts(res.data); // Sirf database ke product dikhenge
     } catch (error) { 
         console.log("Database Empty or Offline");
@@ -109,7 +109,7 @@ function App() {
 
   const addProduct = async () => {
     if(!name || !price || !mrp || !img) return showToast("⚠️ Fill all fields!");
-    await axios.post('http://localhost:5000/api/products', { name, price: Number(price), mrp: Number(mrp), img });
+    await axios.post('https://myshop-live-sllw.onrender.com/api/products', { name, price: Number(price), mrp: Number(mrp), img });
     setName(""); setPrice(""); setMrp(""); setImg("");
     fetchProducts();
     showToast("🎉 Product Added!");
@@ -117,7 +117,7 @@ function App() {
 
   const deleteProduct = async (id) => {
     if(confirm("Delete?")) {
-      await axios.delete(`http://localhost:5000/api/products/${id}`);
+      await axios.delete(`https://myshop-live-sllw.onrender.com/api/products/${id}`);
       fetchProducts();
       showToast("🗑️ Deleted!");
     }
