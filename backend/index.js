@@ -7,7 +7,7 @@ app.use(express.json());
 app.use(cors());
 
 // 1. Database Connection
-mongoose.connect('mongodb+srv://navinsongara:<41922141>@cluster0.12mlbgv.mongodb.net/?appName=Cluster0')
+mongoose.connect('mongodb+srv://navinsongara:41922141@cluster0.12mlbgv.mongodb.net/?appName=Cluster0')
     .then(() => console.log("🔥 MongoDB Connected!"))
     .catch(err => console.log("❌ DB Error:", err));
 
