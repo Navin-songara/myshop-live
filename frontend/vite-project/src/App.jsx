@@ -2,7 +2,11 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import './App.css';
 
-// 🔥 1. Banner Images (Wahi purani 3 images jo tumne di thi)
+// --- CONFIGURATION ---
+const adminEmail = "deepak@gmail.com"; 
+const API_URL = "http://localhost:5000"; 
+
+// 🔥 1. Banner Images
 const bannerImages = [
   "https://rukminim2.flixcart.com/fk-p-flap/3240/540/image/a64908ba9bf2fe36.jpg?q=60",
   "https://rukminim2.flixcart.com/fk-p-flap/3240/540/image/1338bd4fc60390d8.jpg?q=60",
@@ -22,39 +26,73 @@ const categories = [
   { name: "Grocery", img: "https://rukminim1.flixcart.com/flap/128/128/image/29327f40e9c4d26b.png?q=100", dropdown: ["Rice", "Oil", "Snacks"] }
 ];
 
-// 🔥 3. Best of Electronics (Updated with YOUR Images)
-const bestOfElectronics = [
-  { name: "Monitors", price: "From ₹6,599", img: "https://rukminim2.flixcart.com/image/200/200/xif0q/monitor/s/g/u/-original-imagzrf84gyqeste.jpeg?q=70" },
-  { name: "Power Banks", price: "From ₹499", img: "https://rukminim2.flixcart.com/image/612/612/xif0q/power-bank/u/7/y/energyhub-200000-pb100-miox-original-imahehuctrtuwzbh.jpeg?q=70" }, // Updated
-  { name: "Printers", price: "From ₹2,399", img: "https://rukminim2.flixcart.com/image/612/612/k4a7c7k0/printer/y/j/z/canon-e3370-original-imafn2wyyxjjvzd6.jpeg?q=70" }, // Updated
-  { name: "Projectors", price: "From ₹5,299", img: "https://rukminim2.flixcart.com/image/612/612/xif0q/projector/b/y/f/vision-pro-fully-smart-android-13-native-1080p-4k-support-original-imahehuv7zgr5zju.jpeg?q=70" }, // Updated
-  { name: "Trimmers", price: "From ₹399", img: "https://rukminim2.flixcart.com/image/612/612/xif0q/shopsy-trimmer/a/2/k/trimmer-1-20-mm-stainless-steel-power-play-nxt-beard-trimmer-i-original-imahazyzffanxhrw.jpeg?q=70" } // Updated
-];
-
 function App() {
-  const [products, setProducts] = useState([]); // 👈 Default items deleted (Empty Array)
+  const [products, setProducts] = useState([]); 
   const [cart, setCart] = useState([]); 
   const [view, setView] = useState('home'); 
   const [search, setSearch] = useState("");
   const [notification, setNotification] = useState(null);
   const [bannerIndex, setBannerIndex] = useState(0);
   
-  // Login States
+  // Auth States
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [userName, setUserName] = useState("User");
-  const [loginStep, setLoginStep] = useState('details'); 
-  const [formData, setFormData] = useState({ name: "", mobile: "" });
-  const [otp, setOtp] = useState("");
-  const [generatedOtp, setGeneratedOtp] = useState("");
+  const [userEmail, setUserEmail] = useState(""); 
+  const [authMode, setAuthMode] = useState('login'); 
+  const [formData, setFormData] = useState({ username: "", email: "", password: "" });
 
-  // Product Form
+  // Form States
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
   const [mrp, setMrp] = useState("");
-  const [img, setImg] = useState("");
+  const [imgUrl, setImgUrl] = useState(""); 
+  const [imageFile, setImageFile] = useState(null); 
 
+  // --- 🆕 USE EFFECT WITH DATABASE CART LOGIC ---
   useEffect(() => {
-    fetchProducts();
+    
+    // Ek function banaya jo pehle Product layega, fir Cart layega
+    const loadData = async () => {
+        try {
+            // 1. Fetch Products from Database
+            const productRes = await axios.get(`${API_URL}/api/products`);
+            const allProducts = productRes.data;
+            setProducts(allProducts);
+
+            // 2. Check Login & Fetch Cart
+            const token = localStorage.getItem('auth-token');
+            const savedEmail = localStorage.getItem('user-email');
+            
+            if(token) {
+                setIsLoggedIn(true);
+                if(savedEmail) setUserEmail(savedEmail);
+
+                // 3. Database se Cart maango
+                const cartRes = await axios.post(`${API_URL}/getcart`, {}, {headers:{'auth-token':token}});
+                const cartData = cartRes.data; // Ye ID aur Quantity deta hai: { "id_123": 2 }
+
+                // 4. Cart ki IDs ko Real Products se match karo
+                const loadedCart = [];
+                if(allProducts.length > 0) {
+                    for(const itemId in cartData) {
+                        const addedItem = allProducts.find(product => product._id === itemId);
+                        if(addedItem) {
+                            // Agar Quantity 2 hai, to 2 baar push karo
+                            for(let i = 0; i < cartData[itemId]; i++) {
+                                loadedCart.push(addedItem);
+                            }
+                        }
+                    }
+                }
+                setCart(loadedCart);
+                console.log("Cart Sync Complete!");
+            }
+        } catch (error) {
+            console.log("Error loading data:", error);
+        }
+    };
+
+    loadData(); // Function run karo
+
     const interval = setInterval(() => {
       setBannerIndex((prev) => (prev + 1) % bannerImages.length);
     }, 3000);
@@ -67,59 +105,120 @@ function App() {
   };
 
   const fetchProducts = async () => {
+      // Helper function for updates
+      const res = await axios.get(`${API_URL}/api/products`);
+      setProducts(res.data);
+  };
+
+  const handleAuth = async () => {
+    if(!formData.email || !formData.password) return alert("Please fill details");
+    let endpoint = authMode === 'login' ? '/login' : '/signup';
     try {
-      const res = await axios.get('https://myshop-live-sllw.onrender.com/api/products');
-      setProducts(res.data); // Sirf database ke product dikhenge
-    } catch (error) { 
-        console.log("Database Empty or Offline");
+        const res = await axios.post(`${API_URL}${endpoint}`, formData);
+        if(res.data.success) {
+            localStorage.setItem('auth-token', res.data.token);
+            localStorage.setItem('user-email', formData.email);
+            setIsLoggedIn(true);
+            setUserEmail(formData.email);
+            setView('home');
+            showToast("✅ Successfully Logged In!");
+            setFormData({ username: "", email: "", password: "" });
+            
+            // Login ke baad page reload taaki cart fetch ho jaye
+            window.location.reload(); 
+        } else {
+            alert(res.data.errors);
+        }
+    } catch (error) {
+        alert("Authentication Failed. Check Server.");
     }
   };
 
-  const handleRequestOtp = () => {
-    if(!formData.name || !formData.mobile) return alert("Please enter Name & Mobile!");
-    const code = Math.floor(1000 + Math.random() * 9000).toString();
-    setGeneratedOtp(code);
-    setLoginStep('otp');
-    alert(`🔐 Your OTP is: ${code}`); 
-  };
+  const handleLogout = () => {
+      localStorage.removeItem('auth-token');
+      localStorage.removeItem('user-email');
+      setIsLoggedIn(false);
+      setUserEmail("");
+      setCart([]); // Logout par cart khali karo
+      setView('home');
+      showToast("Logged Out");
+  }
 
-  const handleVerifyOtp = () => {
-    if(otp === generatedOtp) {
-        setIsLoggedIn(true);
-        setUserName(formData.name);
-        setView('home');
-        showToast(`Welcome ${formData.name}!`);
-        setLoginStep('details');
-        setFormData({ name: "", mobile: "" });
-        setOtp("");
-    } else { alert("Wrong OTP!"); }
-  };
-
-  const addToCart = (product) => {
-    setCart([...cart, product]);
+  // --- 🆕 ADD TO CART (Database Connected) ---
+  const addToCart = async (product) => {
+    setCart([...cart, product]); // Frontend Update (Instant)
     showToast(`🛒 Added to Cart!`);
+
+    // Backend Update
+    if(localStorage.getItem('auth-token')) {
+        await axios.post(`${API_URL}/addtocart`, 
+            { itemId: product._id }, 
+            { headers: { 'auth-token': localStorage.getItem('auth-token') } }
+        );
+    }
   };
 
-  const removeFromCart = (index) => {
-    setCart(cart.filter((_, i) => i !== index));
+  // --- 🆕 REMOVE FROM CART (Database Connected) ---
+  const removeFromCart = async (index, productId) => {
+    setCart(cart.filter((_, i) => i !== index)); // Frontend Update
     showToast("❌ Removed!");
+
+    // Backend Update
+    if(localStorage.getItem('auth-token') && productId) {
+        await axios.post(`${API_URL}/removefromcart`, 
+            { itemId: productId }, 
+            { headers: { 'auth-token': localStorage.getItem('auth-token') } }
+        );
+    }
   };
 
   const totalAmount = cart.reduce((sum, item) => sum + item.price, 0);
 
+  // --- SMART ADD PRODUCT ---
   const addProduct = async () => {
-    if(!name || !price || !mrp || !img) return showToast("⚠️ Fill all fields!");
-    await axios.post('https://myshop-live-sllw.onrender.com/api/products', { name, price: Number(price), mrp: Number(mrp), img });
-    setName(""); setPrice(""); setMrp(""); setImg("");
-    fetchProducts();
-    showToast("🎉 Product Added!");
+    if(!name || !price || !mrp) return showToast("⚠️ Fill Name, Price & MRP!");
+    if(!imgUrl && !imageFile) return showToast("⚠️ Provide Image Link OR Upload File!");
+    
+    try {
+        const token = localStorage.getItem('auth-token');
+        let finalImageUrl = imgUrl; 
+
+        if (imageFile) {
+            const formData = new FormData();
+            formData.append('product', imageFile);
+            const uploadRes = await axios.post(`${API_URL}/upload`, formData);
+            if(uploadRes.data.success) {
+                finalImageUrl = uploadRes.data.image_url; 
+            }
+        }
+
+        await axios.post(`${API_URL}/api/products`, 
+            { name, price: Number(price), mrp: Number(mrp), img: finalImageUrl },
+            { headers: { 'auth-token': token } }
+        );
+
+        setName(""); setPrice(""); setMrp(""); setImgUrl(""); setImageFile(null);
+        fetchProducts();
+        showToast("🎉 Product Added Successfully!");
+        
+    } catch (error) {
+        console.error(error);
+        showToast("⛔ Failed! Check Server/Login.");
+    }
   };
 
   const deleteProduct = async (id) => {
-    if(confirm("Delete?")) {
-      await axios.delete(`https://myshop-live-sllw.onrender.com/api/products/${id}`);
-      fetchProducts();
-      showToast("🗑️ Deleted!");
+    if(confirm("Are you sure?")) {
+        try {
+            const token = localStorage.getItem('auth-token');
+            await axios.delete(`${API_URL}/api/products/${id}`, {
+                headers: { 'auth-token': token }
+            });
+            fetchProducts();
+            showToast("🗑️ Deleted!");
+        } catch (error) {
+            showToast("⛔ Only Admin can delete!");
+        }
     }
   };
 
@@ -144,7 +243,7 @@ function App() {
         </div>
         <div className="nav-btns">
             {isLoggedIn ? (
-                <button className="user-btn">👤 {userName}</button>
+                <button className="user-btn" onClick={handleLogout}>🚪 Logout ({userEmail.split('@')[0]})</button>
             ) : (
                 <button className="login-btn" onClick={() => setView('login')}>Login</button>
             )}
@@ -159,11 +258,6 @@ function App() {
              <div key={index} className="category-item">
                 <img src={cat.img} alt={cat.name} onError={(e) => e.target.src="https://cdn-icons-png.flaticon.com/512/2748/2748558.png"} />
                 <span>{cat.name}</span>
-                {cat.dropdown.length > 0 && (
-                   <div className="dropdown-menu">
-                      {cat.dropdown.map((subItem, i) => <p key={i}>{subItem}</p>)}
-                   </div>
-                )}
              </div>
            ))}
         </div>
@@ -176,39 +270,45 @@ function App() {
                     <img src={bannerImages[bannerIndex]} alt="Banner" className="banner-img-slide" />
                 </div>
 
-                <div className="horizontal-section">
-                    <div className="sec-header">
-                        <h2>Best of Electronics</h2>
-                        <button className="view-all-btn">VIEW ALL</button>
-                    </div>
-                    <div className="scroll-container">
-                        {bestOfElectronics.map((item, idx) => (
-                            <div key={idx} className="scroll-card">
-                                <img src={item.img} alt={item.name} />
-                                <h4>{item.name}</h4>
-                                <p className="scroll-price">{item.price}</p>
-                            </div>
-                        ))}
-                    </div>
-                </div>
+                {isLoggedIn && userEmail === adminEmail && (
+                    <div className="form-box" style={{border: '2px dashed orange'}}>
+                        <h3>🔐 Admin Panel: Add Product</h3>
+                        <p style={{fontSize:'12px', color:'green'}}>Welcome Admin!</p>
+                        
+                        <input placeholder="Name" value={name} onChange={e => setName(e.target.value)} />
+                        
+                        <input 
+                            placeholder="Enter Image URL (Link Paste karein)" 
+                            value={imgUrl} 
+                            onChange={e => {setImgUrl(e.target.value); setImageFile(null);}} 
+                            disabled={imageFile !== null} 
+                        />
 
-                <div className="form-box">
-                    <h3>📢 Sell New Product</h3>
-                    <input placeholder="Name" value={name} onChange={e => setName(e.target.value)} />
-                    <input placeholder="Image URL" value={img} onChange={e => setImg(e.target.value)} />
-                    <div className="row">
-                        <input placeholder="MRP" type="number" value={mrp} onChange={e => setMrp(e.target.value)} />
-                        <input placeholder="Price" type="number" value={price} onChange={e => setPrice(e.target.value)} />
-                    </div>
-                    <button className="add-btn" onClick={addProduct}>Publish</button>
-                </div>
+                        <div style={{textAlign: 'center', margin: '5px', color: '#888', fontWeight: 'bold'}}>OR</div>
 
-                <h2 style={{margin:'20px 0'}}>Suggested for You</h2>
+                        <div style={{margin: '10px 0', textAlign: 'left', background: '#f0f0f0', padding: '10px', borderRadius: '5px'}}>
+                            <label style={{fontSize:'12px', color:'#555', display: 'block', marginBottom: '5px'}}>Upload from Computer (Optional):</label>
+                            <input 
+                                type="file" 
+                                onChange={(e) => {setImageFile(e.target.files[0]); setImgUrl("");}} 
+                                style={{fontSize: '12px'}} 
+                            />
+                        </div>
+
+                        <div className="row">
+                            <input placeholder="MRP" type="number" value={mrp} onChange={e => setMrp(e.target.value)} />
+                            <input placeholder="Price" type="number" value={price} onChange={e => setPrice(e.target.value)} />
+                        </div>
+                        <button className="add-btn" onClick={addProduct}>Publish Product</button>
+                    </div>
+                )}
+                
+                <h2 style={{margin:'20px 0'}}>Just For You</h2>
                 
                 {filteredProducts.length === 0 ? (
                     <div style={{textAlign:'center', padding:'40px', color:'#888'}}>
-                        <h3>No Products Found!</h3>
-                        <p>Use the form above to add products.</p>
+                        <h3>Loading Products...</h3>
+                        <p>Make sure Backend is running on Port 5000</p>
                     </div>
                 ) : (
                     <div className="grid">
@@ -226,7 +326,10 @@ function App() {
                                 </div>
                                 <div className="btn-row">
                                     <button className="buy-btn" onClick={() => addToCart(p)}>Add to Cart</button>
-                                    <button className="del-btn" onClick={() => deleteProduct(p._id)}>🗑️</button>
+                                    
+                                    {isLoggedIn && userEmail === adminEmail && (
+                                        <button className="del-btn" onClick={() => deleteProduct(p._id)}>🗑️</button>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -246,7 +349,7 @@ function App() {
                                 <div key={index} className="cart-card">
                                     <img src={item.img} alt={item.name} />
                                     <div className="cart-info"><h4>{item.name}</h4><p>₹{item.price}</p></div>
-                                    <button className="remove-btn" onClick={() => removeFromCart(index)}>Remove</button>
+                                    <button className="remove-btn" onClick={() => removeFromCart(index, item._id)}>Remove</button>
                                 </div>
                             ))}
                         </div>
@@ -263,28 +366,28 @@ function App() {
             <div className="login-overlay">
                 <div className="login-modal">
                     <div className="login-left">
-                        <h2>{loginStep === 'details' ? 'Login' : 'Verify OTP'}</h2>
-                        <p>{loginStep === 'details' ? 'Get access to your Orders, Wishlist and Recommendations' : `Enter OTP sent to ${formData.mobile}`}</p>
+                        <h2>{authMode === 'login' ? 'Login' : 'Signup'}</h2>
+                        <p>Get access to your Orders, Wishlist and Recommendations</p>
                         <img src="https://static-assets-web.flixcart.com/fk-p-linchpin-web/fk-cp-zion/img/login_img_c4a81e.png" alt="Login Graphic" />
                     </div>
                     <div className="login-right">
-                        {loginStep === 'details' ? (
-                            <>
-                                <div className="login-input-group">
-                                    <input type="text" placeholder="Enter Full Name" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} />
-                                    <input type="number" placeholder="Enter Mobile Number" value={formData.mobile} onChange={(e) => setFormData({...formData, mobile: e.target.value})} />
-                                </div>
-                                <button className="request-otp-btn" onClick={handleRequestOtp}>Request OTP</button>
-                            </>
-                        ) : (
-                            <>
-                                <div className="login-input-group">
-                                    <input type="text" placeholder="Enter 4-digit OTP" value={otp} onChange={(e) => setOtp(e.target.value)} maxLength={4} style={{textAlign:'center', letterSpacing:'5px', fontSize:'24px'}} />
-                                </div>
-                                <button className="request-otp-btn" onClick={handleVerifyOtp}>Verify</button>
-                                <p className="create-account" onClick={() => setLoginStep('details')} style={{marginTop:'20px'}}>Back</p>
-                            </>
-                        )}
+                        <div className="login-input-group">
+                            {authMode === 'signup' && (
+                                <input type="text" placeholder="Username" value={formData.username} onChange={(e) => setFormData({...formData, username: e.target.value})} />
+                            )}
+                            <input type="email" placeholder="Email Address" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} />
+                            <input type="password" placeholder="Password" value={formData.password} onChange={(e) => setFormData({...formData, password: e.target.value})} />
+                        </div>
+
+                        <button className="request-otp-btn" onClick={handleAuth}>
+                            {authMode === 'login' ? 'Login' : 'Signup'}
+                        </button>
+                        
+                        <p style={{marginTop:'15px', cursor:'pointer', color:'#2874f0', fontWeight:'bold'}} 
+                           onClick={() => setAuthMode(authMode === 'login' ? 'signup' : 'login')}>
+                            {authMode === 'login' ? "New here? Create an account" : "Already have an account? Login"}
+                        </p>
+                        <p style={{marginTop:'10px', cursor:'pointer'}} onClick={() => setView('home')}>Close</p>
                     </div>
                 </div>
             </div>
