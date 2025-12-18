@@ -4,7 +4,7 @@ import './App.css';
 
 // --- CONFIGURATION ---
 const adminEmail = "deepak@gmail.com"; 
-const API_URL = "http://localhost:5000"; 
+const API_URL = "https://myshop-live-sllw.onrender.com"; 
 
 // 🔥 1. Banner Images
 const bannerImages = [
