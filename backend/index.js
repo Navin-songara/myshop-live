@@ -21,9 +21,13 @@ app.use(express.json());
 app.use(cors());
 
 // --- 2. DATABASE CONNECTION ---
-mongoose.connect('mongodb+srv://navinsongara:41922141@cluster0.12mlbgv.mongodb.net/?appName=Cluster0')
-    .then(() => console.log("🔥 MongoDB Connected!"))
-    .catch(err => console.log("❌ DB Error:", err));
+// mongoose.connect('mongodb+srv://navinsongara:41922141@cluster0.12mlbgv.mongodb.net/?appName=Cluster0')
+//     .then(() => console.log("🔥 MongoDB Connected!"))
+//     .catch(err => console.log("❌ DB Error:", err));
+
+mongoose.connect(process.env.MONGO_URI)
+  .then(() => console.log("🔥 MongoDB Connected!"))
+  .catch(err => console.log("❌ DB Error:", err));
 
 // --- 3. IMAGE STORAGE ENGINE (Local Temporary Storage) ---
 // Note: File pehle yahan aayegi, fir Cloudinary jayegi
